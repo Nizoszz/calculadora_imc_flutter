@@ -1,14 +1,11 @@
-import 'package:calculadora_imc_flutter/model/imc.dart';
-import 'package:calculadora_imc_flutter/repositories/imc_repository.dart';
+import 'package:calculadora_imc_flutter/model/imc_model.dart';
 
 class IMCService{
-  final _imcRepository = IMCRepository();
 
-  IMC calculate(double weight, double height) {
+  IMCModel calculate(double weight, double height) {
     double imc = weight / (height * height);
     var ranking = _typeIMC(imc);
-    var imcObj = IMC(weight, height);
-    imcObj.rankIMC = ranking;
+    var imcObj = IMCModel(weight: weight, height: height, rankIMC: ranking);
     return imcObj;
   }
 
