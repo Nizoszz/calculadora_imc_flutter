@@ -1,7 +1,9 @@
-import 'package:calculadora_imc_flutter/model/imc.dart';
+import 'package:calculadora_imc_flutter/model/imc_model.dart';
 import 'package:calculadora_imc_flutter/repositories/imc_repository.dart';
 import 'package:calculadora_imc_flutter/services/imc_service.dart';
 import 'package:flutter/material.dart';
+
+import '../services/storage_service.dart';
 
 class RegisterData extends StatefulWidget {
   const RegisterData({super.key});
@@ -11,21 +13,28 @@ class RegisterData extends StatefulWidget {
 }
 
 class _RegisterDataState extends State<RegisterData> {
-  final _imcRepository = IMCRepository();
-  var _listIMC = <IMC>[];
+  late IMCRepository repository;
+  IMCService service = IMCService();
+  var _listIMC = <IMCModel>[];
   final _weightController = TextEditingController();
   final _heightController = TextEditingController();
-  final _imcService = IMCService();
+  final _nameController = TextEditingController();
+  AppStorageService storage = AppStorageService();
+  bool save = false;
 
   @override
   void initState() {
     super.initState();
     loadIMCS();
+
   }
 
   void loadIMCS() async {
-    _listIMC = await _imcRepository.readList();
-    print(_listIMC);
+    repository = await IMCRepository.load();
+    _listIMC = repository.findAll();
+    var storage = AppStorageService();
+    _nameController.text = await storage.getName();
+    _heightController.text = (await Future.value(storage.getHeight())).toString();
     setState(() {
 
     });
@@ -42,41 +51,56 @@ class _RegisterDataState extends State<RegisterData> {
         ),
         onPressed: () {
           _weightController.text = "";
-          _heightController.text = "";
           showDialog(
               context: context,
               builder: (BuildContext bc) {
                 return AlertDialog(
                   title: const Text("Enter data to calculate IMC"),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: _weightController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                              color: Color.fromRGBO(47, 79, 79, 1),
-                            )
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: _nameController,
+                          keyboardType: TextInputType.text,
+                          readOnly: _nameController.text.isNotEmpty? true : false,
+                          decoration: const InputDecoration(
+                              focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: Color.fromRGBO(47, 79, 79, 1),
+                                  )
+                              ),
+                              hintText: "Name"
                           ),
-                          hintText: "Weight"
                         ),
-                      ),
-                      TextField(
-                        controller: _heightController,
-                        keyboardType: TextInputType.number,
-
-                        decoration: const InputDecoration(
+                        TextField(
+                          controller: _weightController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
                             focusedBorder: UnderlineInputBorder(
-                                borderSide: BorderSide(
-                                    color:  Color.fromRGBO(47, 79, 79, 1),
-                                )
+                              borderSide: BorderSide(
+                                color: Color.fromRGBO(47, 79, 79, 1),
+                              )
                             ),
-                          hintText: "Height"
+                            hintText: "Weight"
+                          ),
                         ),
-                      ),
-                    ],
+                        TextField(
+                          controller: _heightController,
+                          keyboardType: TextInputType.number,
+                          readOnly: _heightController.text.isNotEmpty? true : false,
+                          decoration: const InputDecoration(
+
+                              focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(
+                                      color:  Color.fromRGBO(47, 79, 79, 1),
+                                  )
+                              ),
+                            hintText: "Height"
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   actions: [
                     TextButton(
@@ -109,13 +133,24 @@ class _RegisterDataState extends State<RegisterData> {
                           ),
                         ),
                         onPressed: () async {
-                          // await _imcRepository.add(IMC(8, 8));
-                          var imcOjb = _imcService.
-                          calculate(double.tryParse(_weightController.text) ?? 0,
-                              double.tryParse(_heightController.text) ?? 0);
-                          await _imcRepository.add(imcOjb);
-                          Navigator.pop(context);
                           setState(() {
+                            save = true;
+                          });
+                          Navigator.pop(context);
+                          // var imcOjb = _imcService.
+                          // calculate(double.tryParse(_weightController.text) ?? 0,
+                          //     double.tryParse(_heightController.text) ?? 0);
+                          await storage.setName(_nameController.text);
+                          await storage.setHeight(double.tryParse(_heightController.text) ?? 0.0);
+                          await storage.setWeight(double.tryParse(_weightController.text) ?? 0.0);
+                          var imcModel = service.calculate(double.tryParse(_weightController.text) ?? 0.0, double.tryParse(_heightController.text) ?? 0.0);
+                          await repository.save(imcModel);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                          content: Text("Dados salvos com sucesso!")));
+                          loadIMCS();
+                          setState(() {
+                            save = false;
                           });
                         },
                         child: const Text("Confirm",
@@ -132,7 +167,10 @@ class _RegisterDataState extends State<RegisterData> {
           );
         },
       ),
-      body: Column(
+      body: save ? const Center(child: CircularProgressIndicator(
+        backgroundColor: Color.fromRGBO(47, 79, 79, 1),
+        color: Colors.white,
+      )) : Column(
         children: [
           Container(
             padding: const EdgeInsets.only(left: 20, right: 24, top: 10, bottom: 10),
@@ -162,7 +200,7 @@ class _RegisterDataState extends State<RegisterData> {
                              color: Colors.white
                          )
                      ),
-                     const SizedBox(
+                     SizedBox(
                        width: 20,
                      ),
                      Text("Height",
@@ -183,16 +221,20 @@ class _RegisterDataState extends State<RegisterData> {
                   itemCount: _listIMC.length,
                   itemBuilder: (BuildContext bc, int index){
                     var imc = _listIMC[index];
+
                     return Dismissible(
                       onDismissed: (DismissDirection direction) async {
-                        await _imcRepository.remove(imc.id);
+                        await repository.remove(imc);
                         loadIMCS();
                       },
-                        key: Key(imc.id),
+                        key: Key(imc.key.toString()),
                         child: Card(
+                          color: Colors.transparent,
+                          surfaceTintColor: Colors.black12,
+                          shadowColor: Colors.transparent,
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.all(
-                              Radius.circular(4)
+                              Radius.circular(3)
                             ),
                           ),
                           elevation: 5,
@@ -204,8 +246,10 @@ class _RegisterDataState extends State<RegisterData> {
                               children: [
                                 Expanded(
                                   flex: 2,
-                                    child: Container(
-                                        child: Text(imc.rankIMC)
+                                    child: Text(imc.rankIMC,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500),
                                     )
                                 ),
                                 Expanded(
@@ -213,18 +257,25 @@ class _RegisterDataState extends State<RegisterData> {
                                     child: Row(
                                       children: [
                                         SizedBox(
-                                          width: 40,
-                                          child: Text(imc.weight.toString(),
+                                          width: 60,
+                                          child: Text(imc.weight.toStringAsFixed(2),
                                             style: const TextStyle(
                                                 fontSize: 16,
-                                                fontWeight: FontWeight.w500
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.white
                                             ),
                                           ),
                                         ),
                                         const SizedBox(
-                                          width: 40,
+                                          width: 20,
                                         ),
-                                        Text(imc.height.toString()),
+                                        Text(imc.height.toStringAsFixed(2),
+                                          style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.white
+                                          ),
+                                        ),
                                       ],
                                     )
                                 ),
