@@ -1,33 +1,32 @@
-import 'package:calculadora_imc_flutter/model/imc.dart';
+import 'dart:convert';
 
-class IMCRepository{
-  final List<IMC> _imcs = [];
+import 'package:calculadora_imc_flutter/model/imc_model.dart';
+import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-  Future<void> add(IMC imc) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    _imcs.add(imc);
+class IMCRepository {
+
+  static late Box _box;
+
+  IMCRepository._create();
+
+  static Future<IMCRepository> load() async {
+    Hive.isBoxOpen('imc') ?
+    _box = Hive.box('imc') :
+    _box = await Hive.openBox('imc');
+    return IMCRepository._create();
   }
 
-  Future<void> update(String id) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    _imcs
-        .where((element) => element.id == id)
-        .first;
+  save(IMCModel imcModel) {
+    _box.add(imcModel);
   }
 
-  Future<void> remove(String id) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    _imcs.remove(
-        _imcs
-            .where((element) => element.id == id)
-            .first
-    );
+  dynamic findAll() {
+    return _box.values.cast<IMCModel>().toList();
   }
 
-  Future<List<IMC>> readList() async {
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    return _imcs;
+  remove(IMCModel imcModel) {
+    imcModel.delete();
   }
 
 }
